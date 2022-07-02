@@ -28,6 +28,7 @@ $Promise.prototype._internalReject = function(reason) {
     if(this._state === 'pending') {
         this._state = 'rejected';
         this._value = reason;
+        this._callHandlers();
     }
 }
 
@@ -55,6 +56,10 @@ $Promise.prototype._callHandlers = function() {
             }
         }
     }
+}
+
+$Promise.prototype.catch = function(eCb) {
+    this.then(null, eCb);
 }
 
 module.exports = $Promise;
