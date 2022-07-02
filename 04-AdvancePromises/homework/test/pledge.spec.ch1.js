@@ -57,7 +57,7 @@ describe('La clase `$Promise`', function(){
 
   // El chequeo de tipo imita el rigor de promesas reales de ES6
 
-  xit('arroja un error descriptivo si es llamado sin función como argumento', function(){
+  it('arroja un error descriptivo si es llamado sin función como argumento', function(){
     var nonFunctions = [null, 'bonjour', undefined, 452, {}, false];
     nonFunctions.forEach(function (nonFunction) {
       expect(callingNewPromiseWith(nonFunction)).toThrowError(
