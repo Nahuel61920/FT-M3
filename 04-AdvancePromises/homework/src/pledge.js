@@ -1,66 +1,98 @@
-'use strict';
+"use strict";
 /*----------------------------------------------------------------
 Promises Workshop: construye la libreria de ES6 promises, pledge.js
 ----------------------------------------------------------------*/
 // // TU CÓDIGO AQUÍ:
-function $Promise(executor) {
-    if (typeof executor !== 'function') {
-        throw new TypeError('Executor must be a function');
+class $Promise {
+    constructor(executor) {
+        if (typeof executor !== "function")
+            throw new TypeError("Executor must be a function");
+        this._state = "pending";
+        this._value = undefined;
+        this._handlerGroups = [];
+        // [{successCb: sH1, errorCb: eH1},{successCb: sH2, errorCb: eH2}]  -> QUEUE
+        executor(this._internalResolve.bind(this), this._internalReject.bind(this));
     }
-
-    this._state = 'pending';
-    this._handlerGroups = [];
-    
-    executor(
-        (data) => this._internalResolve(data),
-        (reason) => this._internalReject(reason) 
-    );
-}
-
-$Promise.prototype._internalResolve = function(data) {
-    if(this._state === 'pending') {
-        this._state = 'fulfilled';
-        this._value = data;
-        this._callHandlers();
+    _internalResolve(value) {
+        if (this._state === "pending") {
+            this._state = "fulfilled";
+            this._value = value;
+            this._callHandlers();
+        }
     }
-}
-$Promise.prototype._internalReject = function(reason) {
-    if(this._state === 'pending') {
-        this._state = 'rejected';
-        this._value = reason;
-        this._callHandlers();
+    _internalReject(value) {
+        if (this._state === "pending") {
+            this._state = "rejected";
+            this._value = value;
+            this._callHandlers();
+        }
     }
-}
-
-$Promise.prototype.then = function(sCb, eCb) {
-    this._handlerGroups.push({
-        successCb: typeof sCb === 'function' ? sCb : false,
-        errorCb: typeof eCb === 'function' ? eCb : false,
-    });
-
-    if(this._state !== 'pending') {
-        this._callHandlers();
+    then(successCb, errorCb) {
+        if (typeof successCb !== "function")
+            successCb = false;
+        if (typeof errorCb !== "function")
+            errorCb = false;
+        const downstreamPromise = new $Promise(() => { });
+        this._handlerGroups.push({
+            successCb,
+            errorCb,
+            // downstreamPromise: downstreamPromise
+            downstreamPromise,
+        });
+        if (this._state !== "pending")
+            this._callHandlers();
+        return downstreamPromise; // <-- en estado de pending
     }
-}
-
-$Promise.prototype._callHandlers = function() {
-    while(this._handlerGroups.length) {
-        const cb = this._handlerGroups.shift();
-        if(this._state === 'fulfilled') {
-            if(cb.successCb) {
-                cb.successCb(this._value);
-            }
-        } else {
-            if(cb.errorCb) {
-                cb.errorCb(this._value);
+    _callHandlers() {
+        while (this._handlerGroups.length) {
+            let cb = this._handlerGroups.shift();
+            if (this._state === "fulfilled") {
+                // const result = cb.successCb && cb.successCb(this._value);
+                if (cb.successCb) {
+                    try {
+                        const result = cb.successCb(this._value);
+                        if (result instanceof $Promise) {
+                            return result.then(
+                                (value) => cb.downstreamPromise._internalResolve(value),
+                                (error) => cb.downstreamPromise._internalReject(error)
+                            );
+                        } else {
+                            cb.downstreamPromise._internalResolve(result);
+                        }
+                    } catch (e) {
+                        cb.downstreamPromise._internalReject(e);
+                    }
+                } else {
+                    return cb.downstreamPromise._internalResolve(this._value);
+                }
+            } else if (this._state === "rejected") {
+                if (cb.errorCb) {
+                    try {
+                        const result = cb.errorCb(this._value);
+                        if (result instanceof $Promise) {
+                            return result.then(
+                                (value) => cb.downstreamPromise._internalResolve(value),
+                                (error) => cb.downstreamPromise._internalReject(error)
+                            );
+                        } else {
+                            cb.downstreamPromise._internalResolve(result);
+                        }
+                    } catch (e) {
+                        cb.downstreamPromise._internalReject(e);
+                    }
+                } else {
+                    return cb.downstreamPromise._internalReject(this._value);
+                }
             }
         }
     }
+    catch(errorCb) {
+        return this.then(null, errorCb);
+    }
 }
 
-$Promise.prototype.catch = function(eCb) {
-    this.then(null, eCb);
-}
+
+
 
 module.exports = $Promise;
 /*-------------------------------------------------------
